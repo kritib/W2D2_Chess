@@ -52,15 +52,15 @@ class Chess
 
   def create_piece(row, col)
     if col == 0 || col == 7
-      return Rook.new
+      return Rook.new(row)
     elsif col == 1 || col == 6
-      return Knight.new
+      return Knight.new(row)
     elsif col == 2 || col == 5
-      return Bishop.new
-    elsif [row, col] == [0, 3] || [row, col] == [7, 4]
-      return King.new
+      return Bishop.new(row)
+    elsif col == 4
+      return King.new(row)
     else
-      return Queen.new
+      return Queen.new(row)
     end
   end
 
@@ -167,8 +167,7 @@ class Piece
   attr_accessor :player
   attr_reader :name
 
-  def initialize(name)
-    @name = name
+  def initialize
   end
 
   def valid_dest?(from, to, board)
@@ -194,9 +193,13 @@ end
 
 
 class Knight < Piece
-  def initialize
+  def initialize(row)
     @moves = [[1, 2], [2, 1]]
-    super("N")
+    if row == 0
+      @name = "\u265E"
+    else
+      @name = "\u2658"
+    end
   end
 
   def valid_dest?(from, to, board)
@@ -209,9 +212,12 @@ class Knight < Piece
 end
 
 class Rook < Piece
-  def initialize
-    @moves = [[1, 0], [0, 1]]
-    super("R")
+  def initialize(row)
+    if row == 0
+      @name = "\u265C"
+    else
+      @name = "\u2656"
+    end
   end
 
   def valid_dest?(from, to, board)
@@ -228,8 +234,12 @@ class Rook < Piece
 end
 
 class Bishop < Piece
-  def initialize
-    super("B")
+  def initialize(row)
+    if row == 0
+      @name = "\u265D"
+    else
+      @name = "\u2657"
+    end
   end
 
   def valid_dest?(from, to, board)
@@ -246,9 +256,13 @@ class Bishop < Piece
 end
 
 class King < Piece
-  def initialize
+  def initialize(row)
     @moves = [[1, 0], [0, 1], [1, 1]]
-    super("K")
+    if row == 0
+      @name = "\u265A"
+    else
+      @name = "\u2654"
+    end
   end
 
   def valid_dest?(from, to, board)
@@ -262,9 +276,12 @@ class King < Piece
 end
 
 class Queen < Piece
-  def initialize
-    @moves = [[1, 2], [2, 1]]
-    super("Q")
+  def initialize(row)
+    if row == 0
+      @name = "\u265B"
+    else
+      @name = "\u2655"
+    end
   end
 
   def valid_dest?(from, to, board)
@@ -282,11 +299,18 @@ end
 
 class WhitePawn < Piece
   def initialize
-    @moves = [[1, ], [2, 1]]
-    super("P")
+    @moves = [[1, 0], [2, 1]]
+    @name = "\u2659"
   end
 end
 
+
+class BlackPawn < Piece
+  def initialize
+    @moves = [[1, ], [2, 1]]
+    @name = "\u265F"
+  end
+end
 
 
 
