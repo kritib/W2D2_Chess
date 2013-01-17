@@ -4,7 +4,16 @@ class Chess
   end
 
   def play
-    print_board
+    puts "Welcome to Command-Line-Chess!"
+    set_players
+
+    [@player1, @player2].each do |player|
+      print_board
+      from, to = get_move(player)
+      until valid_move?(from, to, player)
+        from, to = get_move(player)
+      end
+    end
   end
 
 
@@ -46,9 +55,9 @@ class Chess
   end
 
   def print_board
-    puts "   #{("A".."H").to_a.join(" ")}"
+    puts "   #{("e".."h").to_a.join(" ")}"
     @board.each_with_index do |row, i|
-      print "#{(i+1)} |"
+      print "#{(8-i)} |"
       row.each do |piece|
         if piece.nil?
           print " |"
@@ -56,8 +65,73 @@ class Chess
           print "#{piece.name}|"
         end
       end
-      puts
+      puts " #{(8-i)}"
     end
+    puts "   #{("e".."h").to_a.join(" ")}"
+  end
+
+  def set_players
+    print "Enter name of Player 1 (white): "
+    @player1 = create_player(gets.chomp, 6)
+    print "Enter name of Player 2 (black): "
+    @player2 = create_player(gets.chomp, 0)
+  end
+
+  def create_player(name, row)
+    if name.downcase == "computer"
+      player = ComputerPlayer.new
+    else
+      player = HumanPlayer.new(name)
+    end
+    assign_pieces(player)
+    player
+  end
+
+  def assign_pieces(player)
+    [row, row+1].each do |i|
+      board[i].each do |piece|
+        player.pieces << piece
+        piece.player = player
+      end
+    end
+  end
+
+  def get_move(player)
+    move = []
+    until valid_input?(move)
+      puts "#{player.name}, make your move (e.g. e2 e4):"
+      move = gets.chomp.downcase.split
+    end
+    return parse_move(move)
+  end
+
+  def valid_input?(move)
+    if move.length == 2
+      return move.all? do |pos| 
+        pos.length == 2 && ("a".."h").include?(pos[0]) && ("1".."8").include?(pos[1])
+      end
+    end
+    false
+  end
+
+  def parse_move(move)
+    from = [(move[0][1].to_i), (("a".."h").to_a.index(move[0][0]))]
+    to = [(move[1][1].to_i), (("a".."h").to_a.index(move[1][0]))]
+    [from, to]
+  end
+
+  def valid_move?
+  end
+
+
+end
+
+class HumanPlayer
+  attr_accessor :pieces
+  attr_reader :name
+
+  def initialize(name)
+    @name = name
   end
 
 end
