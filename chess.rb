@@ -13,6 +13,7 @@ class Chess
       until valid_move?(from, to, player)
         from, to = get_move(player)
       end
+      make_move(from, to, player)
     end
   end
 
@@ -55,7 +56,7 @@ class Chess
   end
 
   def print_board
-    puts "   #{("e".."h").to_a.join(" ")}"
+    puts "   #{("a".."h").to_a.join(" ")}"
     @board.each_with_index do |row, i|
       print "#{(8-i)} |"
       row.each do |piece|
@@ -67,29 +68,29 @@ class Chess
       end
       puts " #{(8-i)}"
     end
-    puts "   #{("e".."h").to_a.join(" ")}"
+    puts "   #{("a".."h").to_a.join(" ")}"
   end
 
   def set_players
     print "Enter name of Player 1 (white): "
-    @player1 = create_player(gets.chomp, 6)
+    @player1 = create_player(gets.chomp, 1, 6)
     print "Enter name of Player 2 (black): "
-    @player2 = create_player(gets.chomp, 0)
+    @player2 = create_player(gets.chomp, 2, 0)
   end
 
-  def create_player(name, row)
+  def create_player(name, num, row)
     if name.downcase == "computer"
-      player = ComputerPlayer.new
+      player = ComputerPlayer.new(num)
     else
-      player = HumanPlayer.new(name)
+      player = HumanPlayer.new(name, num)
     end
-    assign_pieces(player)
+    assign_pieces(player, row)
     player
   end
 
-  def assign_pieces(player)
+  def assign_pieces(player, row)
     [row, row+1].each do |i|
-      board[i].each do |piece|
+      @board[i].each do |piece|
         player.pieces << piece
         piece.player = player
       end
@@ -98,19 +99,22 @@ class Chess
 
   def get_move(player)
     move = []
-    until valid_input?(move)
-      puts "#{player.name}, make your move (e.g. e2 e4):"
-      move = gets.chomp.downcase.split
+    puts "#{player.name}, make your move (e.g. e2 e4):"
+    move = gets.chomp.downcase.split
+    unless valid_input?(move)
+      puts "Invalid Input"
+      get_move(player)
     end
     return parse_move(move)
   end
 
   def valid_input?(move)
     if move.length == 2
-      return move.all? do |pos| 
+      return true if move.all? do |pos| 
         pos.length == 2 && ("a".."h").include?(pos[0]) && ("1".."8").include?(pos[1])
       end
     end
+    puts "Invalid input"
     false
   end
 
@@ -120,7 +124,20 @@ class Chess
     [from, to]
   end
 
-  def valid_move?
+  def valid_move?(from, to, player)
+    if piece = valid_piece?(from, player)
+      return true if piece.valid_dest?(from, to, @board)
+    end
+    puts "Invalid Move"
+    false
+  end
+
+  def valid_piece?(from, player)
+    piece = @board[from[0]][from[1]]
+    if player.pieces.include?(piece)
+      return piece
+    end
+    nil
   end
 
 
@@ -128,10 +145,12 @@ end
 
 class HumanPlayer
   attr_accessor :pieces
-  attr_reader :name
+  attr_reader :name, :num
 
-  def initialize(name)
+  def initialize(name, num)
     @name = name
+    @num = num
+    @pieces = []
   end
 
 end
@@ -151,6 +170,14 @@ class Knight < Piece
   def initialize(pos)
     @moves = [[1, 2], [2, 1]]
     super("N", pos)
+  end
+
+  def valid_dest?(from, to, board)
+    diff = [0, 0]
+    2.times do |i|
+      diff[i] = (to[i] - from[i]).abs
+    end
+    @moves.include?(diff)
   end
 end
 
