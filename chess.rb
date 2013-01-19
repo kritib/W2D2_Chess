@@ -9,6 +9,9 @@ class Chess
     end
   end
 
+  #GAME PLAY METHODS
+
+  #Master method that runs the game
   def run
     puts "Welcome to Command-Line-Chess!"
     @players = set_players
@@ -19,13 +22,95 @@ class Chess
     puts "Congratulations #{winner.name}! You have won the game."
   end
 
+  #Returns players for the new chess game
+  def set_players
+    print "Enter name of Player 1 (white): "
+    player1 = create_player(gets.chomp, 1)
+    assign_pieces(player1)
 
+    print "Enter name of Player 2 (black): "
+    player2 = create_player(gets.chomp, 2)
+    assign_pieces(player2)
+
+    [player1, player2]
+  end
+
+  #Creates either a human player or a computer player
+  #Computer player has not been built yet
+  def create_player(name, num)
+    if name.downcase == "computer"
+      player = ComputerPlayer.new(num)
+    else
+      player = HumanPlayer.new(name, num)
+    end
+  end
+
+  #Assigns all the white (W) pieces to player 1 and the rest to player 2  
+  def assign_pieces(player)
+    if player.num == 1
+      piece_color = "W"
+    else
+      piece_color = "B"
+    end
+
+    @board.each do |row|
+      row.each do |piece|
+        
+        if !piece.nil?
+          if piece.color == piece_color
+            player.pieces << piece
+            piece.player = player
+          end
+        end
+      end
+    end    
+  end
+
+
+  #runs the game loop
+  #returns the winning player
+  def play_game
+    while true
+      @players.each do |player|
+        print_board
+        make_move(player)
+        king = find_opp_king(player)
+        return player if king.nil? || game_won?(king, player)  
+      end
+    end
+  end
+
+  #Makes a valid move for player
+  def make_move(player)
+    while true 
+      from, to = player.get_move
+      break if valid_move?(from, to, player)
+      puts "Invalid move"
+    end
+    move_piece(from, to)
+  end
+
+  #Moves the piece from 'from' to 'to'
+  #updates piece.pos for moved piece and deletes killed piece(if any) 
+  def move_piece(from, to)
+    piece = @board[from[0]][from[1]]
+    dest_piece = @board[to[0]][to[1]]
+    delete_piece(dest_piece) unless dest_piece.nil?
+    @board[from[0]][from[1]] = nil
+    @board[to[0]][to[1]] = piece
+    piece.pos = [to[0], to[1]]
+  end
+
+
+  #BOARD METHODS
+
+  #returns a chess board with all pieces in regular starting pos
   def initialize_board
     board = Array.new(8) {Array.new(8)}
     populate_board(board)
   end
 
-
+  #fills in the board with pieces in starting position
   def populate_board(board)
     [0, 7].each do |row|
       4.times do |col|
@@ -40,7 +125,7 @@ class Chess
     board
   end
 
-
+  #Creates all the pieces (except pawns) for game setup
   def create_piece(row, col)
     if col == 0 || col == 7
       return Rook.new(row, col, row)
@@ -56,28 +141,11 @@ class Chess
   end
 
 
-  def play_game
-    while true
-      @players.each do |player|
-        print_board
-        make_move(player)
-        king = find_opp_king(player)
-        return player if king.nil? || game_won?(king, player)  
-      end
-    end
-  end
 
+  #VALIDATION METHODS
 
-  def make_move(player)
-    while true 
-      from, to = player.get_move
-      break if valid_move?(from, to, player)
-      puts "Invalid move"
-    end
-    move_piece(from, to, player)
-  end
-
-
+  #Returns true if player has won the game
+  #Puts check/checkmate status of the players opponent
   def game_won?(king, player)
     if danger_zone = check?(king.pos, player)
       if zone_protected?(danger_zone, king.player)
@@ -92,27 +160,34 @@ class Chess
     false
   end
 
+  #Returns the danger zone if the opponents king is in check at that position
+  #The danger zone is an array of the paths of all the players pieces
+  #that can kill the opponents king in one move
+  #Else returns false
+  def check?(king_pos, player)
+    danger_zone = []
 
-  def checkmate?(king, player)
-    true unless king.destinations(@board).any? do |king_pos|
-      if danger_zone = check?(king_pos, player)
-        zone_protected?(danger_zone, king.player)
-      else
-        true
+    player.pieces.each do |piece|
+      if path = piece.valid_dest?(king_pos, @board)
+        danger_zone << path
       end
     end
+
+    danger_zone.empty? ? false : danger_zone
   end
 
-
+  #returns true if the opponent(player in this case) can protect his king
+  #by moving any of his other pieces
   def zone_protected?(danger_zone, player)
-    p danger_zone
     path = danger_zone.pop
+    
+    #checks for one path. If protected, makes sure that single move
+    #protects the king from every other path in the danger zone as well
     path.each do |square|
       player.pieces.each do |piece|
+        
         if piece.valid_dest?(square, @board)
-          if danger_zone.empty?
-            return true
-          end
+          return true if danger_zone.empty?
           return true if danger_zone.all? do |path|
             path.include?(square)
           end
@@ -121,6 +196,16 @@ class Chess
     end
     false
   end
+
+  #Returns true if any of the kings possible destinations
+  def checkmate?(king, player)
+    king.destinations(@board).any? do |king_pos|
+      !check?(king_pos, player) 
+    end
+  end
+
+
+
 
 
   def find_opp_king(player)
@@ -133,24 +218,7 @@ class Chess
   end
 
 
-  def check?(king_pos, player)
-    danger_zone = []
-    player.pieces.each do |piece|
-      if path = piece.valid_dest?(king_pos, @board)
-        danger_zone << path
-      end
-    end
-    danger_zone.empty? ? false : danger_zone
-  end
-
-  def move_piece(from, to, player)
-    piece = @board[from[0]][from[1]]
-    dest_piece = @board[to[0]][to[1]]
-    delete_piece(dest_piece) unless dest_piece.nil?
-    @board[from[0]][from[1]] = nil
-    @board[to[0]][to[1]] = piece
-    piece.pos = [to[0], to[1]]
-  end
+  
 
 
   def print_board
@@ -169,46 +237,8 @@ class Chess
     puts "   #{("a".."h").to_a.join(" ")}"
   end
 
-  def set_players
-    print "Enter name of Player 1 (white): "
-    player1 = create_player(gets.chomp, 1)
-    assign_pieces(player1)
-
-    print "Enter name of Player 2 (black): "
-    player2 = create_player(gets.chomp, 2)
-    assign_pieces(player2)
-
-    [player1, player2]
-  end
-
-  def create_player(name, num)
-    if name.downcase == "computer"
-      player = ComputerPlayer.new(num)
-    else
-      player = HumanPlayer.new(name, num)
-    end
-  end
 
   
-  def assign_pieces(player)
-    if player.num == 1
-      piece_color = "W"
-    else
-      piece_color = "B"
-    end
-    @board.each do |row|
-      row.each do |piece|
-        if !piece.nil?
-          if piece.color == piece_color
-            player.pieces << piece
-            piece.player = player
-          end
-        end
-      end
-    end    
-  end
-
-
   def valid_move?(from, to, player)
     if piece = player_piece?(from, player)
       unless player_piece?(to, player)
