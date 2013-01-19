@@ -10,21 +10,74 @@ class Chess
     while true
       [@player1, @player2].each do |player|
         print_board
-        from, to = player.get_move
-        until valid_move?(from, to, player)
+        while true 
           from, to = player.get_move
+          break if valid_move?(from, to, player)
+          puts "Invalid move"
         end
         make_move(from, to, player)
+        king = find_opp_king(player)
+        if danger_zone = check?(king.pos, player)
+          if zone_protected?(danger_zone, king.player)
+            puts "CHECK!"
+          elsif checkmate?(king, player)
+            return 
+          else
+            puts "CHECK!"
+          end
+          
+        end
       end
     end
 
     print_board
   end
 
+  def checkmate?(king, player)
+    true unless king.destinations.any? do |king_pos|
+      if danger_zone = check?(king_pos, player)
+        zone_protected?(danger_zone, king.player)
+      end
+    end
+  end
+
+  def zone_protected?(danger_zone, player)
+    path = danger_zone.pop
+    path.each do |square|
+      player.pieces.each do |piece|
+        if piece.valid_dest?(square, @board)
+          return true if danger_zone.all? do |path|
+            path.include?(square)
+          end
+        end
+      end
+    end
+  end
+
+  def find_opp_king(player)
+     @board.each do |row|
+      row.each do |piece|
+        return piece if piece.is_a?(King) && piece.player != player
+      end
+    end
+    nil
+  end
+
+
+  def check?(king_pos, player)
+    danger_zone = player.pieces.map do |piece|
+      path if path = piece.valid_dest?(king_pos, @board)
+    end
+    danger_zone.empty? ? false : danger_zone
+  end
+
   def make_move(from, to, player)
     piece = @board[from[0]][from[1]]
+    dest_piece = @board[to[0]][to[1]]
+    delete_piece(dest_piece) unless dest_piece.nil?
     @board[from[0]][from[1]] = nil
     @board[to[0]][to[1]] = piece
+    piece.pos = [to[0], to[1]]
   end
 
 
@@ -42,8 +95,8 @@ class Chess
       end
     end
     8.times do |col|
-      board[1][col] = BlackPawn.new
-      board[6][col] = WhitePawn.new
+      board[1][col] = BlackPawn.new(1, col)
+      board[6][col] = WhitePawn.new(6, col)
     end
     board
   end
@@ -51,15 +104,15 @@ class Chess
 
   def create_piece(row, col)
     if col == 0 || col == 7
-      return Rook.new(row)
+      return Rook.new(row, col)
     elsif col == 1 || col == 6
-      return Knight.new(row)
+      return Knight.new(row, col)
     elsif col == 2 || col == 5
-      return Bishop.new(row)
+      return Bishop.new(row, col)
     elsif col == 4
-      return King.new(row)
+      return King.new(row, col)
     else
-      return Queen.new(row)
+      return Queen.new(row, col)
     end
   end
 
@@ -105,15 +158,13 @@ class Chess
     end
   end
 
-  
 
   def valid_move?(from, to, player)
     if piece = player_piece?(from, player)
       unless player_piece?(to, player)
-        return true if piece.valid_dest?(from, to, @board)
+        return piece.valid_dest?(to, @board)
       end
     end
-    puts "Invalid Move"
     false
   end
 
@@ -127,6 +178,9 @@ class Chess
     nil
   end
 
+  def delete_piece(piece)
+    piece.player.pieces.delete(piece)
+  end
 
 end
 
@@ -142,22 +196,24 @@ class HumanPlayer
 
 
   def get_move
-    puts "#{@name}, make your move (e.g. e2 e4):"
-    move = gets.chomp.downcase.split
-    until valid_input?(move)
+    while true
       puts "#{@name}, make your move (e.g. e2 e4):"
       move = gets.chomp.downcase.split
+      break if valid_input?(move)
+      puts "Invalid input"
     end
     return parse_move(move)
   end
 
   def valid_input?(move)
     if move.length == 2
-      return true if move.all? do |pos| 
-        pos.length == 2 && ("a".."h").include?(pos[0]) && ("1".."8").include?(pos[1])
+      return move.all? do |pos| 
+        if pos.length == 2 
+          return ("a".."h").include?(pos[0]) && ("1".."8").include?(pos[1])
+        end
+        false
       end
     end
-    puts "Invalid input"
     false
   end
 
@@ -170,77 +226,91 @@ class HumanPlayer
 end
 
 class Piece
-  attr_accessor :player
+  attr_accessor :player, :pos
   attr_reader :name
 
-  def initialize
+  def initialize(pos)
+    @pos = pos
   end
 
-  def valid_dest?(from, to, board)
-    diff = [0, 0]
-    2.times {|i| diff[i] = (to[i] - from[i])}
+  def valid_dest?(to, board)
+    diff = path_diff(to)
     if board[to[0]][to[1]] != nil
       return false unless @moves[:kill].include?(diff)
-    elsif from[0] == @start_row
+    elsif @pos[0] == @start_row
       return false unless @moves[:first].include?(diff)
     else
       return false unless @moves[:else] == diff
     end
-    true 
+    [[@pos]] 
   end
 
-  def path_empty?(from, to, board)
+  def path_empty?(diff, board)
     distance = 0
-    diff = [0, 0]
-    2.times {|i| diff[i] = (to[i] - from[i])}
+    path = []
+
     diff.each {|num| distance = num.abs if num!= 0}
     starter = diff.map {|num| num/distance}
-    path_square = from.dup
-    distance.times do
+    path_square = @pos.dup
+    distance.times do |dist|
+      path << path_square
+      unless dist == 0
+        return false unless board[path_square[0]][path_square[1]].nil?
+      end
       2.times  {|i| path_square[i] += starter[i]}
-      return false unless board[path_square[0]][path_square[1]].nil?
     end
-    true
+    path
   end
 
-  def path_diff(from, to)
+  def abs_path_diff(to)
     diff = [0, 0]
-    2.times {|i| diff[i] = (to[i] - from[i]).abs}
+    2.times {|i| diff[i] = (to[i] - @pos[i]).abs}
     diff
   end
+
+  def path_diff(to)
+    diff = [0, 0]
+    2.times {|i| diff[i] = (to[i] - @pos[i])}
+    diff
+  end
+
+  
 
 end
 
 
 class Knight < Piece
-  def initialize(row)
+  def initialize(row, col)
     @moves = [[1, 2], [2, 1]]
     if row == 0
       @name = "\u265E"
     else
       @name = "\u2658"
     end
+    super([row, col])
   end
 
-  def valid_dest?(from, to, board)
-    diff = path_diff(from, to)
-    @moves.include?(diff)
+  def valid_dest?(to, board)
+    diff = abs_path_diff(to)
+    return false unless @moves.include?(diff)
+    [[@pos]]
   end
 end
 
 class Rook < Piece
-  def initialize(row)
+  def initialize(row, col)
     if row == 0
       @name = "\u265C"
     else
       @name = "\u2656"
     end
+    super([row, col])
   end
 
-  def valid_dest?(from, to, board)
-    diff = path_diff(from, to)
+  def valid_dest?(to, board)
+    diff = path_diff(to)
     if diff.count(0) == 1
-      return true if path_empty?(from, to, board)
+      return path_empty?(diff, board)
     end
     false
   end
@@ -248,18 +318,19 @@ class Rook < Piece
 end
 
 class Bishop < Piece
-  def initialize(row)
+  def initialize(row, col)
     if row == 0
       @name = "\u265D"
     else
       @name = "\u2657"
     end
+    super([row, col])
   end
 
-  def valid_dest?(from, to, board)
-    diff = path_diff(from, to)
-    if diff[0] == diff[1]
-      return true if path_empty?(from, to, board)
+  def valid_dest?(to, board)
+    diff = path_diff(to)
+    if diff[0] == diff[1] || diff[0] == (-diff[1])
+      return path_empty?(diff, board)
     end
     false
   end
@@ -267,35 +338,38 @@ class Bishop < Piece
 end
 
 class King < Piece
-  def initialize(row)
+  def initialize(row, col)
     @moves = [[1, 0], [0, 1], [1, 1]]
     if row == 0
       @name = "\u265A"
     else
       @name = "\u2654"
     end
+    super([row, col])
   end
 
-  def valid_dest?(from, to, board)
-    diff = path_diff(from, to)
-    @moves.include?(diff)
+  def valid_dest?(to, board)
+    diff = abs_path_diff(to)
+    return false unless @moves.include?(diff)
+    [[@pos]]
   end
 
 end
 
 class Queen < Piece
-  def initialize(row)
+  def initialize(row, col)
     if row == 0
       @name = "\u265B"
     else
       @name = "\u2655"
     end
+    super([row, col])
   end
 
-  def valid_dest?(from, to, board)
-    diff = path_diff(from, to)
+  def valid_dest?(to, board)
+    diff = path_diff(to)
     if diff.count(0) == 1 || diff[0] == diff[1]
-      return true if path_empty?(from, to, board)
+      return true if path_empty?(diff, board)
     end
     false
   end
@@ -303,24 +377,26 @@ class Queen < Piece
 end
 
 class WhitePawn < Piece
-  def initialize
+  def initialize(row, col)
     @moves = {:kill => [[-1, 1], [-1, -1]],
               :first => [[-2, 0], [-1, 0]],
               :else => [-1, 0]}
 
     @name = "\u2659"
     @start_row = 6
+    super([row, col])
   end
 end
 
 
 class BlackPawn < Piece
-  def initialize
+  def initialize(row, col)
     @moves = {:kill => [[1, 1], [1, -1]],
               :first => [[2, 0], [1, 0]],
               :else => [1, 0]}
     @name = "\u265F"
     @start_row = 1
+    super([row, col])
   end
 end
 
