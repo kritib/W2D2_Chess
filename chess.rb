@@ -9,90 +9,14 @@ class Chess
     end
   end
 
-  def play
+  def run
     puts "Welcome to Command-Line-Chess!"
     @players = set_players
 
-    while true
-      @players.each do |player|
-        print_board
-        while true 
-          from, to = player.get_move
-          break if valid_move?(from, to, player)
-          puts "Invalid move"
-        end
-        make_move(from, to, player)
-        king = find_opp_king(player)
-        if danger_zone = check?(king.pos, player)
-          if zone_protected?(danger_zone, king.player)
-            puts "CHECK!"
-          elsif checkmate?(king, player)
-            puts "CHECKMATE"
-          else
-            puts "CHECK!"
-          end
-          
-        end
-      end
-    end
-
+    winner = play_game
+    
     print_board
-  end
-
-  def checkmate?(king, player)
-    true unless king.destinations(@board).any? do |king_pos|
-      if danger_zone = check?(king_pos, player)
-        zone_protected?(danger_zone, king.player)
-      else
-        false
-      end
-    end
-  end
-
-  def zone_protected?(danger_zone, player)
-    path = danger_zone.pop
-    path.each do |square|
-      player.pieces.each do |piece|
-        if piece.valid_dest?(square, @board)
-          if danger_zone.empty?
-            return true
-          end
-          return true if danger_zone.all? do |path|
-            path.include?(square)
-          end
-        end
-      end
-    end
-    false
-  end
-
-  def find_opp_king(player)
-     @board.each do |row|
-      row.each do |piece|
-        return piece if piece.is_a?(King) && piece.player != player
-      end
-    end
-    nil
-  end
-
-
-  def check?(king_pos, player)
-    danger_zone = []
-    player.pieces.each do |piece|
-      if path = piece.valid_dest?(king_pos, @board)
-        danger_zone << path
-      end
-    end
-    danger_zone.empty? ? false : danger_zone
-  end
-
-  def make_move(from, to, player)
-    piece = @board[from[0]][from[1]]
-    dest_piece = @board[to[0]][to[1]]
-    delete_piece(dest_piece) unless dest_piece.nil?
-    @board[from[0]][from[1]] = nil
-    @board[to[0]][to[1]] = piece
-    piece.pos = [to[0], to[1]]
+    puts "Congratulations #{winner.name}! You have won the game."
   end
 
 
@@ -130,6 +54,104 @@ class Chess
       return Queen.new(row, col, row)
     end
   end
+
+
+  def play_game
+    while true
+      @players.each do |player|
+        print_board
+        make_move(player)
+        king = find_opp_king(player)
+        return player if king.nil? || game_won?(king, player)  
+      end
+    end
+  end
+
+
+  def make_move(player)
+    while true 
+      from, to = player.get_move
+      break if valid_move?(from, to, player)
+      puts "Invalid move"
+    end
+    move_piece(from, to, player)
+  end
+
+
+  def game_won?(king, player)
+    if danger_zone = check?(king.pos, player)
+      if zone_protected?(danger_zone, king.player)
+        puts "CHECK!"
+      elsif checkmate?(king, player)
+        puts "CHECKMATE!"
+        return true
+      else
+        puts "CHECK!"
+      end  
+    end
+    false
+  end
+
+
+  def checkmate?(king, player)
+    true unless king.destinations(@board).any? do |king_pos|
+      if danger_zone = check?(king_pos, player)
+        zone_protected?(danger_zone, king.player)
+      else
+        true
+      end
+    end
+  end
+
+
+  def zone_protected?(danger_zone, player)
+    p danger_zone
+    path = danger_zone.pop
+    path.each do |square|
+      player.pieces.each do |piece|
+        if piece.valid_dest?(square, @board)
+          if danger_zone.empty?
+            return true
+          end
+          return true if danger_zone.all? do |path|
+            path.include?(square)
+          end
+        end
+      end
+    end
+    false
+  end
+
+
+  def find_opp_king(player)
+     @board.each do |row|
+      row.each do |piece|
+        return piece if piece.is_a?(King) && piece.player != player
+      end
+    end
+    nil
+  end
+
+
+  def check?(king_pos, player)
+    danger_zone = []
+    player.pieces.each do |piece|
+      if path = piece.valid_dest?(king_pos, @board)
+        danger_zone << path
+      end
+    end
+    danger_zone.empty? ? false : danger_zone
+  end
+
+  def move_piece(from, to, player)
+    piece = @board[from[0]][from[1]]
+    dest_piece = @board[to[0]][to[1]]
+    delete_piece(dest_piece) unless dest_piece.nil?
+    @board[from[0]][from[1]] = nil
+    @board[to[0]][to[1]] = piece
+    piece.pos = [to[0], to[1]]
+  end
+
 
   def print_board
     puts "   #{("a".."h").to_a.join(" ")}"
@@ -185,15 +207,6 @@ class Chess
       end
     end    
   end
-
-  # def assign_pieces(player, row)
-  #   [row, row+1].each do |i|
-  #     @board[i].each do |piece|
-  #       player.pieces << piece
-  #       piece.player = player
-  #     end
-  #   end
-  # end
 
 
   def valid_move?(from, to, player)
@@ -375,7 +388,7 @@ end
 
 class King < Piece
   def initialize(row, col, color)
-    @moves = [[1, 0], [0, 1], [1, 1], [-1, 0], [0, -1], [-1, -1]]
+    @moves = [[1, 0], [0, 1], [1, 1], [-1, 0], [0, -1], [-1, -1], [1, -1], [-1, 1]]
     if color == 0
       @name = "\u265A"
     else
@@ -453,6 +466,7 @@ end
 def build_sample
   sample = Array.new(8) {Array.new(8)}
   sample[0][0] = King.new(0, 0, 0)
+  sample[7][7] = King.new(7, 7, 1)
   sample[0][4] = Rook.new(0, 4, 1)
   sample[4][0] = Rook.new(4, 0, 1)
   sample[4][4] = Bishop.new(4, 4, 1)
@@ -460,6 +474,6 @@ def build_sample
 end
 
 game = Chess.new(build_sample)
-game.play
+game.run
 
 
